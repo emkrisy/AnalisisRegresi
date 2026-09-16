@@ -1,0 +1,9 @@
+{
+  "name": "bengkel-regresi-non-linear",
+  "version": "1.0.0",
+  "description": "Aplikasi interaktif untuk EDA, pencocokan model regresi non-linear, diagnostik, dan prediksi dengan perbandingan benchmark. Tanpa build step — HTML/CSS/JS murni.",
+  "private": true,
+  "scripts": {
+    "start": "npx --yes serve . -l 8000"
+  }
+}

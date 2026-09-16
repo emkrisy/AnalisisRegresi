@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bengkel Regresi Non-Linear</title>
+
+<!-- Font (Biarkan saja, tidak akan membuat error jika offline) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>Bengkel Regresi Non-Linear</h1>
+      <p>Eksplorasi data, pencocokan model non-linear, diagnostik residual, dan prediksi interaktif dengan perbandingan antar model — dalam satu alur kerja.</p>
+    </div>
+    <div>
+      <div class="status-line" id="statusLine">Data: <span>belum dimuat</span> · Model tercocok: <span>0</span></div>
+      <button id="themeToggle" type="button">Tema: Otomatis</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav class="rail">
+      <button class="nav-btn active" data-stage="1"><span class="n">1</span><span>Data &amp; EDA</span></button>
+      <button class="nav-btn" data-stage="2"><span class="n">2</span><span>Model &amp; Diagnostik</span></button>
+      <button class="nav-btn" data-stage="3"><span class="n">3</span><span>Prediksi &amp; Benchmark</span></button>
+    </nav>
+
+    <main>
+      <!-- TAHAP 1: DATA & EDA -->
+      <section class="stage active" id="stage1">
+        <h2 class="stage-h">Tahap 1 — Data &amp; EDA</h2>
+        <p class="stage-sub">Muat dataset contoh atau unggah CSV dua kolom (X, Y) milik Anda, lalu tinjau sebarannya sebelum mencocokkan model.</p>
+
+        <div class="panel">
+          <h3>Sumber data</h3>
+          <div class="row">
+            <div class="field">
+              <label for="sampleSelect">Dataset contoh</label>
+              <select id="sampleSelect">
+                <option value="">— pilih contoh —</option>
+                <option value="logistic">Pertumbuhan Kasus Kumulatif (logistik)</option>
+                <option value="expdecay">Depresiasi Nilai Aset (eksponensial)</option>
+                <option value="claims">Rata-rata Klaim vs Usia Tertanggung (power)</option>
+                <option value="rainfall">Curah Hujan Musiman (gaussian)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="csvFile">atau unggah CSV</label>
+              <input type="file" id="csvFile" accept=".csv,text/csv">
+            </div>
+            <div class="field" id="colPickWrap" style="display:none;">
+              <label>Kolom X / Y</label>
+              <div class="row">
+                <select id="colX" style="min-width:110px;"></select>
+                <select id="colY" style="min-width:110px;"></select>
+              </div>
+            </div>
+          </div>
+          <p class="note" id="dataNote">Belum ada data dimuat. CSV harus memiliki minimal dua kolom numerik; baris pertama boleh berupa header teks.</p>
+        </div>
+
+        <div class="panel" id="edaPanel" style="display:none;">
+          <h3>Ringkasan statistik</h3>
+          <div class="stat-grid" id="statGrid"></div>
+        </div>
+
+        <div class="two-col" id="edaCharts" style="display:none;">
+          <div class="panel">
+            <div class="chart-box"><canvas id="chartScatter"></canvas></div>
+            <p class="figure-title">Fig. 1 — <b>Sebar X vs Y</b></p>
+          </div>
+          <div class="panel">
+            <div class="table-wrap" style="max-height:300px; overflow-y:auto;">
+              <table class="data-table" id="previewTable"></table>
+            </div>
+            <p class="figure-title">Tabel 1 — <b>Cuplikan data</b> (10 baris pertama)</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAHAP 2: MODEL & DIAGNOSTIK -->
+      <section class="stage" id="stage2">
+        <h2 class="stage-h">Tahap 2 — Model &amp; Diagnostik</h2>
+        <p class="stage-sub">Pilih satu atau beberapa bentuk model non-linear untuk dicocokkan menggunakan metode kuadrat terkecil, lalu periksa kualitas kecocokan melalui plot diagnostik residual.</p>
+
+        <div class="panel" id="modelChoicePanel">
+          <h3>Pilih bentuk model</h3>
+          <div id="modelOptions"></div>
+          <div class="row" style="margin-top:16px;">
+            <button class="action" id="fitBtn" disabled>Cocokkan Model</button>
+            <span class="note" id="fitStatus" style="margin-top:0;"></span>
+          </div>
+        </div>
+
+        <div class="panel" id="diagPanel" style="display:none;">
+          <div class="row" style="justify-content:space-between;">
+            <h3 style="margin:0;">Diagnostik model</h3>
+            <div class="field" style="min-width:220px;">
+              <label for="diagSelect">Tampilkan diagnostik untuk</label>
+              <select id="diagSelect"></select>
+            </div>
+          </div>
+          <div class="stat-grid" id="diagStats" style="margin-top:14px;"></div>
+          <p class="note" id="diagParams"></p>
+        </div>
+
+        <div id="diagCharts" style="display:none;">
+          <div class="panel">
+            <div class="chart-box tall"><canvas id="chartFit"></canvas></div>
+            <p class="figure-title">Fig. 2 — <b>Data teramati dan kurva model terpasang</b></p>
+          </div>
+          <div class="two-col">
+            <div class="panel">
+              <div class="chart-box"><canvas id="chartResidual"></canvas></div>
+              <p class="figure-title">Fig. 3 — <b>Residual vs nilai terpasang</b> (pola acak di sekitar nol menandakan kecocokan yang baik)</p>
+            </div>
+            <div class="panel">
+              <div class="chart-box"><canvas id="chartResidualHist"></canvas></div>
+              <p class="figure-title">Fig. 4 — <b>Distribusi residual</b></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAHAP 3: PREDIKSI & BENCHMARK -->
+      <section class="stage" id="stage3">
+        <h2 class="stage-h">Tahap 3 — Prediksi &amp; Perbandingan Benchmark</h2>
+        <p class="stage-sub">Bandingkan performa seluruh model yang telah dicocokkan, lalu gunakan penggeser untuk melihat prediksi setiap model pada titik X tertentu secara langsung.</p>
+
+        <div class="panel" id="benchPanel" style="display:none;">
+          <h3>Tabel benchmark</h3>
+          <div class="table-wrap"><table id="benchTable"></table></div>
+          <p class="note">Diurutkan berdasarkan R² (semakin tinggi semakin baik). AIC lebih rendah menandakan keseimbangan kecocokan-kompleksitas yang lebih baik.</p>
+        </div>
+
+        <div class="panel" id="benchChartPanel" style="display:none;">
+          <div class="chart-box"><canvas id="chartBenchBar"></canvas></div>
+          <p class="figure-title">Fig. 5 — <b>Perbandingan R² antar model</b></p>
+        </div>
+
+        <div class="panel" id="predictPanel" style="display:none;">
+          <h3>Prediksi interaktif</h3>
+          <div class="slider-wrap">
+            <input type="range" id="predictSlider" step="0.01">
+            <input type="number" id="predictNum" step="any" style="width:110px;">
+          </div>
+          <div class="table-wrap" style="margin-top:14px;"><table id="predictTable"></table></div>
+        </div>
+
+        <div class="panel" id="overlayChartPanel" style="display:none;">
+          <div class="chart-box tall"><canvas id="chartOverlay"></canvas></div>
+          <p class="figure-title">Fig. 6 — <b>Seluruh kurva model dan titik prediksi pada X terpilih</b></p>
+        </div>
+
+        <div class="empty" id="stage3Empty">Belum ada model yang dicocokkan. Selesaikan Tahap 2 terlebih dahulu.</div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- ========================================== -->
+<!-- BAGIAN INI YANG SANGAT PENTING:            -->
+<!-- ========================================== -->
+<!-- 1. Panggil library Chart.js LOKAL Anda     -->
+<script src="js/chart.js"></script>
+
+<!-- 2. Panggil modul-modul Anda                -->
+<script src="js/stats.js"></script>
+<script src="js/models.js"></script>
+<script src="js/data.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
