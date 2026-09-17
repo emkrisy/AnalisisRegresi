@@ -49,12 +49,13 @@ header.top .brand{max-width:640px;}
 .dept-text .uni-name{
   font-family:var(--sans); font-size:.74rem; color:var(--ink-soft);
 }
-.logo-dark{ display:none; }
-:root[data-theme="dark"] .logo-dark{ display:block; }
-:root[data-theme="dark"] .logo-light{ display:none; }
+/* Hanya ada satu file logo — invert warnanya otomatis saat tema gelap.
+   Cocok untuk logo monokrom/garis. Jika logo Anda penuh warna dan hasil
+   invert terlihat aneh, siapkan file logo-white.png lalu pakai versi
+   dua-gambar (lihat riwayat percakapan) sebagai gantinya. */
+:root[data-theme="dark"] .campus-logo{ filter: invert(1) brightness(1.8); }
 @media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]) .logo-dark{ display:block; }
-  :root:not([data-theme="light"]) .logo-light{ display:none; }
+  :root:not([data-theme="light"]) .campus-logo{ filter: invert(1) brightness(1.8); }
 }
 header.top h1{
   font-family:var(--serif); font-weight:700; font-size:clamp(1.5rem,3vw,2.1rem);
