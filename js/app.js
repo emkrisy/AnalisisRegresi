@@ -159,7 +159,7 @@ function renderEDA(){
 function renderModelOptions(){
   var xs=State.xs;
   var hasNonPositiveX = xs.some(function(x){ return x<=0; });
-  var order=["poly","exp","logistic","power","log","gaussian"];
+  var order=["linear","poly","exp","logistic","power","log","gaussian"];
   var html="";
   order.forEach(function(key){
     var def=Mdl.MODEL_DEFS[key];
@@ -170,7 +170,7 @@ function renderModelOptions(){
       extra=' <select id="polyDegree" style="margin-left:6px; padding:3px 6px; font-size:.78rem;">'+
         [2,3,4,5].map(function(d){ return '<option value="'+d+'"'+(d===2?" selected":"")+">derajat "+d+"</option>"; }).join("")+"</select>";
     }
-    html+='<label class="opt'+(disabled?" disabled":"")+'"><input type="checkbox" value="'+key+'" '+(disabled?"disabled":"")+(key==="poly"?" checked":"")+'>'+
+    html+='<label class="opt'+(disabled?" disabled":"")+'"><input type="checkbox" value="'+key+'" '+(disabled?"disabled":"")+(key==="poly"||key==="linear"?" checked":"")+'>'+
       '<span><span class="name">'+def.label+extra+'</span><span class="formula">'+def.formulaTpl+
       (disabled?"  — membutuhkan X > 0":"")+"</span></span></label>";
   });

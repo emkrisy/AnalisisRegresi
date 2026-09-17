@@ -18,6 +18,15 @@ NLR.models = (function(){
   var S = NLR.stats; // modul statistik (lihat js/stats.js)
 
   var MODEL_DEFS = {
+    linear: {
+    label:"Linear", formulaTpl:"y = a + bx", needsPositiveX:false,
+    fit:function(xs,ys){
+      var lr=S.simpleLinReg(xs,ys);
+      var a=lr.intercept, b=lr.slope;
+      return {ok:true, params:[a,b], paramNames:["a","b"], predict:function(x){ return a+b*x; },
+        formula:"y = "+S.fmt(a,3)+" "+(b>=0?"+ ":"− ")+S.fmt(Math.abs(b),4)+"x"};
+    }
+  },
     poly: {
       label:"Polinomial", formulaTpl:"y = β₀ + β₁x + β₂x² + …",
       needsPositiveX:false,
