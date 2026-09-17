@@ -80,6 +80,132 @@ NLR.stats = (function(){
     return {slope:slope, intercept:intercept};
   }
 
+  /* ==========================================================
+     TAMBAHAN FUNGSI UJI STATISTIK & ASUMSI
+     ========================================================== */
+
+  /** Invers Matriks dengan Eliminasi Gauss-Jordan (untuk Covariance Matrix) */
+  function invertMatrix(M) {
+    var n = M.length;
+    var inv = [];
+    for(var i=0; i<n; i++) inv.push(new Array(n).fill(0));
+    for(var i=0; i<n; i++) {
+      var e = new Array(n).fill(0);
+      e[i] = 1;
+      var col = solveLinear(M, e);
+      if(!col) return null; // Matriks singular (tidak bisa di-invers)
+      for(var j=0; j<n; j++) inv[j][i] = col[j];
+    }
+    return inv;
+  }
+
+  /** Aproksimasi Normal CDF (untuk menghitung p-value dari t-stat jika N lumayan besar) */
+  function pValueNorm(t) {
+    var x = -Math.abs(t);
+    var k = 1 / (1 + 0.2316419 * Math.abs(x));
+    var d = 0.3989423 * Math.exp(-x * x / 2);
+    var prob = d * k * (0.3193815 + k * (-0.3565638 + k * (1.781478 + k * (-1.821256 + k * 1.330274))));
+    return 2 * prob; // 2-tailed
+  }
+
+  /** Menghitung Standard Error, t-stat, dan p-value menggunakan Jacobian Numerik */
+  function computeParameterStats(modelFn, params, xs, sse) {
+    var n = xs.length, p = params.length;
+    var df = Math.max(1, n - p);
+    var mse = sse / df;
+
+    // 1. Hitung Jacobian J (Central Difference)
+    var J = [];
+    for (var i = 0; i < n; i++) J.push(new Array(p).fill(0));
+    for (var j = 0; j < p; j++) {
+      var h = Math.abs(params[j]) > 1e-5 ? params[j] * 1e-5 : 1e-5;
+      var pj1 = params.slice(), pj2 = params.slice();
+      pj1[j] += h; pj2[j] -= h;
+      for (var i = 0; i < n; i++) {
+        var y1 = modelFn(pj1, xs[i]);
+        var y2 = modelFn(pj2, xs[i]);
+        J[i][j] = (y1 - y2) / (2 * h); 
+      }
+    }
+
+    // 2. Hitung (J^T J)
+    var JTJ = [];
+    for (var a = 0; a < p; a++) {
+      JTJ.push(new Array(p).fill(0));
+      for (var b = 0; b < p; b++) {
+        for (var i = 0; i < n; i++) JTJ[a][b] += J[i][a] * J[i][b];
+      }
+    }
+
+    // 3. Hitung Invers(JTJ) untuk mendapatkan Covariance Matrix
+    var cov = invertMatrix(JTJ);
+    var se = new Array(p).fill(NaN), tStats = new Array(p).fill(NaN), pVals = new Array(p).fill(NaN);
+
+    if (cov) {
+      for (var j = 0; j < p; j++) {
+        se[j] = Math.sqrt(Math.max(0, cov[j][j] * mse));
+        tStats[j] = params[j] / (se[j] || 1e-9);
+        pVals[j] = pValueNorm(tStats[j]);
+      }
+    }
+    return { se: se, t: tStats, p: pVals };
+  }
+
+  /** Uji Durbin-Watson (Autokorelasi Residual) */
+  function durbinWatson(resid) {
+    var num = 0, den = 0;
+    for(var i = 1; i < resid.length; i++) num += Math.pow(resid[i] - resid[i-1], 2);
+    for(var i = 0; i < resid.length; i++) den += resid[i] * resid[i];
+    return den === 0 ? NaN : num / den;
+  }
+
+  /** Uji Jarque-Bera (Normalitas Residual) -> p-value via Chi-Square df=2 */
+  function jarqueBera(resid) {
+    var n = resid.length, m = mean(resid), m2 = 0, m3 = 0, m4 = 0;
+    for(var i=0; i<n; i++) {
+      var d = resid[i] - m;
+      m2 += d*d; m3 += d*d*d; m4 += Math.pow(d, 4);
+    }
+    m2 /= n; m3 /= n; m4 /= n;
+    var skew = m2 === 0 ? 0 : m3 / Math.pow(m2, 1.5);
+    var kurt = m2 === 0 ? 0 : m4 / (m2*m2);
+    var jb = (n / 6) * (skew*skew + 0.25 * Math.pow(kurt - 3, 2));
+    var pval = Math.exp(-jb / 2); // Pendekatan Chi-Square
+    return { jb: jb, p: pval, skew: skew, kurt: kurt };
+  }
+
+  function getSigStars(p) {
+    if(p < 0.001) return "***"; if(p < 0.01) return "**"; if(p < 0.05) return "*"; if(p < 0.1) return "."; return "";
+  }
+
+  /** Uji Breusch-Pagan (Heteroskedastisitas) - Koenker-Bassett version */
+  function breuschPagan(xs, resid) {
+    var n = xs.length;
+    // 1. Kuadratkan residual (e^2)
+    var sqResid = resid.map(function(e){ return e * e; });
+    
+    // 2. Regresikan e^2 terhadap X
+    var auxReg = simpleLinReg(xs, sqResid);
+    var srMean = mean(sqResid);
+    var sse = 0, sst = 0;
+    
+    for(var i=0; i<n; i++) {
+      var fit = auxReg.intercept + auxReg.slope * xs[i];
+      sse += Math.pow(sqResid[i] - fit, 2);
+      sst += Math.pow(sqResid[i] - srMean, 2);
+    }
+    
+    // 3. Hitung R^2 dari regresi aux
+    var r2_aux = sst === 0 ? 0 : 1 - (sse / sst);
+    
+    // 4. Statistik Lagrange Multiplier (LM) = n * R^2
+    var lm_stat = n * r2_aux;
+    
+    // 5. p-value dari Chi-Square df=1 sama dengan probabilitas Normal dari akar LM
+    var pval = pValueNorm(Math.sqrt(lm_stat));
+    return { lm: lm_stat, p: pval };
+  }
+
   /**
    * Levenberg-Marquardt generik untuk kuadrat-terkecil non-linear.
    * modelFunc(params, x) -> prediksi y
@@ -147,6 +273,7 @@ NLR.stats = (function(){
 
   return {
     mean:mean, variance:variance, sd:sd, median:median, pearson:pearson, covariance:covariance, spearman:spearman,
-    solveLinear:solveLinear, simpleLinReg:simpleLinReg, fitLM:fitLM, computeMetrics:computeMetrics, fmt:fmt
+    solveLinear:solveLinear, simpleLinReg:simpleLinReg, fitLM:fitLM, computeMetrics:computeMetrics, fmt:fmt,
+    computeParameterStats:computeParameterStats, durbinWatson:durbinWatson, jarqueBera:jarqueBera, breuschPagan:breuschPagan, getSigStars:getSigStars
   };
 })();

@@ -22,8 +22,8 @@
         <span class="uni-name">Universitas Padjadjaran</span>
       </div>
     </div>
-        <h1>Aplikasi Analisis Regresi</h1>
-    <p>Eksplorasi data, pemilihan model, dan benchmark model</p>
+    <h1>Aplikasi Regresi</h1>
+    <p>Eksplorasi data, pencocokan model non-linear, diagnostik residual, dan prediksi interaktif dengan perbandingan antar model — dalam satu alur kerja.</p>
   </div>
   <div>
     <div class="status-line" id="statusLine">Data: <span>belum dimuat</span> · Model tercocok: <span>0</span></div>
@@ -42,7 +42,7 @@
       <!-- TAHAP 1: DATA & EDA -->
       <section class="stage active" id="stage1">
         <h2 class="stage-h">Tahap 1 — Data &amp; EDA</h2>
-        <p class="stage-sub">Muat dataset contoh atau unggah CSV dua kolom (X, Y) milik Anda, lalu tinjau sebarannya sebelum mencocokkan model.</p>
+        <p class="stage-sub">Muat dataset contoh atau unggah CSV dua kolom (X, Y) milik Anda, lalu tinjau sebarannya sebelum mencocokkan model. Pastikan data anda sudah bersih.</p>
 
         <div class="panel">
           <h3>Sumber data</h3>
@@ -115,6 +115,14 @@
           </div>
           <div class="stat-grid" id="diagStats" style="margin-top:14px;"></div>
           <p class="note" id="diagParams"></p>
+        </div>
+
+        <div class="panel" id="statTestPanel" style="display:none;">
+          <h3>Uji signifikansi &amp; asumsi model</h3>
+          <div class="table-wrap"><table id="paramSigTable"></table></div>
+          <p class="note" id="overallFNote"></p>
+          <div class="stat-grid" id="assumptionGrid" style="margin-top:14px;"></div>
+          <p class="note">Signifikansi: *** p&lt;0.001, ** p&lt;0.01, * p&lt;0.05. Uji ini memakai Jacobian numerik pada titik estimasi dan mengasumsikan galat menyebar bebas &amp; identik — untuk kepentingan publikasi formal, disarankan validasi ulang dengan paket statistik khusus (R/Python).</p>
         </div>
 
         <div id="diagCharts" style="display:none;">

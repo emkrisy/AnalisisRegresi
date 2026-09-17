@@ -12,7 +12,7 @@ var Dat  = NLR.data;
 var Chr  = NLR.chartsHelper;
 
 /* ---------------------------------------------------------------- */
-/* NAVIGATION                                                          */
+/* NAVIGATION                                                       */
 /* ---------------------------------------------------------------- */
 var navBtns=document.querySelectorAll(".nav-btn");
 navBtns.forEach(function(b){
@@ -25,7 +25,7 @@ navBtns.forEach(function(b){
 });
 
 /* ---------------------------------------------------------------- */
-/* STATE                                                              */
+/* STATE                                                            */
 /* ---------------------------------------------------------------- */
 var State = { xs:null, ys:null, labelX:"X", labelY:"Y", fitted:[], charts:{} };
 function destroyChart(id){ if(State.charts[id]){ State.charts[id].destroy(); delete State.charts[id]; } }
@@ -38,7 +38,7 @@ function updateStatus(){
 }
 
 /* ---------------------------------------------------------------- */
-/* LOADING DATA (contoh atau CSV)                                      */
+/* LOADING DATA (contoh atau CSV)                                   */
 /* ---------------------------------------------------------------- */
 function loadIntoState(xs, ys, labelX, labelY){
   var pairs=[]; for(var i=0;i<xs.length;i++){ if(isFinite(xs[i])&&isFinite(ys[i])) pairs.push([xs[i],ys[i]]); }
@@ -116,7 +116,7 @@ document.getElementById("colY").addEventListener("change", function(){
 });
 
 /* ---------------------------------------------------------------- */
-/* STAGE 1: EDA                                                       */
+/* STAGE 1: EDA                                                     */
 /* ---------------------------------------------------------------- */
 function renderEDA(){
   var xs=State.xs, ys=State.ys, n=xs.length;
@@ -154,7 +154,7 @@ function renderEDA(){
 }
 
 /* ---------------------------------------------------------------- */
-/* STAGE 2: PEMILIHAN & PENCOCOKAN MODEL                               */
+/* STAGE 2: PEMILIHAN & PENCOCOKAN MODEL                            */
 /* ---------------------------------------------------------------- */
 function renderModelOptions(){
   var xs=State.xs;
@@ -163,7 +163,7 @@ function renderModelOptions(){
   var html="";
   order.forEach(function(key){
     var def=Mdl.MODEL_DEFS[key];
-    if(!def) return; // aman jika model dihapus/diganti nama di models.js
+    if(!def) return; 
     var disabled = def.needsPositiveX && hasNonPositiveX;
     var extra="";
     if(key==="poly"){
@@ -200,7 +200,8 @@ document.getElementById("fitBtn").addEventListener("click", function(){
     var residuals=validIdx.map(function(i,j){ return State.ys[i]-yhatUsed[j]; });
     results.push({
       id:key+"_"+idx, type:key, label:label, formula:out.formula,
-      paramNames:out.paramNames, params:out.params, predict:out.predict,
+      paramNames:out.paramNames, params:out.params, predict:out.predict, 
+      modelFn:out.modelFn, // BARIS PALING PENTING
       metrics:metrics, residuals:residuals, color:Mdl.PALETTE[results.length % Mdl.PALETTE.length]
     });
   });
@@ -216,7 +217,7 @@ document.getElementById("fitBtn").addEventListener("click", function(){
 });
 
 /* ---------------------------------------------------------------- */
-/* DIAGNOSTIK                                                          */
+/* DIAGNOSTIK                                                       */
 /* ---------------------------------------------------------------- */
 function renderDiagnosticsUI(){
   if(State.fitted.length===0){
@@ -294,10 +295,65 @@ function renderDiagnosticsFor(id){
     data:{ labels:labels, datasets:[{ label:"Frekuensi", data:bins, backgroundColor:m.color+"cc" }] },
     options:Object.assign({responsive:true, maintainAspectRatio:false}, optsH)
   });
-}
+
+  /* --- RENDER UJI STATISTIK & ASUMSI --- */
+  if (m.modelFn) {
+    document.getElementById("statTestPanel").style.display="block";
+    
+    try {
+      // 1. Parameter Significance Table
+      var pStats = Stat.computeParameterStats(m.modelFn, m.params, State.xs, m.metrics.sse);
+      var sigHead = "<tr><th>Parameter</th><th>Estimasi</th><th>Std. Error</th><th>t-value</th><th>Pr(>|t|)</th></tr>";
+      var sigBody = m.paramNames.map(function(name, i){
+        var pv = pStats.p[i];
+        var stars = Stat.getSigStars(pv);
+        return "<tr><td><b>"+esc(name)+"</b></td>" +
+               "<td>"+Stat.fmt(m.params[i], 4)+"</td>" +
+               "<td>"+Stat.fmt(pStats.se[i], 4)+"</td>" +
+               "<td>"+Stat.fmt(pStats.t[i], 3)+"</td>" +
+               "<td>"+(isNaN(pv) ? "—" : Stat.fmt(pv, 4)+" <b style='color:var(--teal)'>"+stars+"</b>")+"</td></tr>";
+      }).join("");
+      document.getElementById("paramSigTable").innerHTML = sigHead + sigBody;
+
+      // 2. F-Test (overall model fit)
+      var p_total = m.params.length;
+      var n_obs = State.xs.length;
+      var fStat = ((m.metrics.r2)/(p_total-1)) / ((1-m.metrics.r2)/(n_obs-p_total)) || 0;
+      var fPval = fStat > 10 ? "<0.001 ***" : "cek tabel F"; 
+      document.getElementById("overallFNote").innerHTML = 
+        "<b>Uji-F (Keseluruhan Model):</b> Statistik F = " + Stat.fmt(fStat, 2) + " pada df("+(p_total-1)+", "+(n_obs-p_total)+") — Prob: " + fPval;
+
+      // 3. Assumption Grid (DW, JB, BP)
+      var dw = Stat.durbinWatson(m.residuals);
+      var jb = Stat.jarqueBera(m.residuals);
+      var bp = Stat.breuschPagan ? Stat.breuschPagan(State.xs, m.residuals) : {lm: 0, p: 1};
+      
+      var dwStatus = (dw > 1.5 && dw < 2.5) ? " <span style='color:var(--teal)'>(Bebas Autokorelasi)</span>" : " <span class='warn'>(Ada Autokorelasi)</span>";
+      var jbStatus = (jb.p > 0.05) ? " <span style='color:var(--teal)'>(Berdistribusi Normal)</span>" : " <span class='warn'>(Tidak Normal)</span>";
+      var bpStatus = (bp.p > 0.05) ? " <span style='color:var(--teal)'>(Homoskedastisitas)</span>" : " <span class='warn'>(Heteroskedastisitas)</span>";
+      
+      var assumps = [
+        ["Uji Autokorelasi (Durbin-Watson)", "DW = " + Stat.fmt(dw, 2) + dwStatus],
+        ["Uji Normalitas (Jarque-Bera)", "JB = " + Stat.fmt(jb.jb, 2) + " | p-value = " + Stat.fmt(jb.p, 3) + jbStatus],
+        ["Uji Heteroskedastisitas (Breusch-Pagan)", "LM = " + Stat.fmt(bp.lm, 2) + " | p-value = " + Stat.fmt(bp.p, 3) + bpStatus]
+      ];
+      
+      document.getElementById("assumptionGrid").innerHTML = assumps.map(function(s){
+        return '<div class="cell" style="grid-column: 1 / -1;"><span class="k">'+s[0]+'</span><span class="v">'+s[1]+"</span></div>";
+      }).join("");
+
+    } catch (e) {
+      console.error("Gagal menghitung statistik:", e);
+      document.getElementById("assumptionGrid").innerHTML = "<div class='cell'><span class='warn'>Error saat menghitung uji statistik. Pastikan file stats.js sudah tersimpan dengan benar.</span></div>";
+    }
+
+  } else {
+    document.getElementById("statTestPanel").style.display="none";
+  }
+} // <--- AKHIR FUNGSI DIAGNOSTICS
 
 /* ---------------------------------------------------------------- */
-/* STAGE 3: BENCHMARK & PREDIKSI                                       */
+/* STAGE 3: BENCHMARK & PREDIKSI                                    */
 /* ---------------------------------------------------------------- */
 function resetStage3(){
   document.getElementById("benchPanel").style.display="none";
